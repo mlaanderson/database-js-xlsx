@@ -67,12 +67,33 @@ class XlsxTable {
         return this.body.endCell().rowNumber() - this.body.startCell().rowNumber() + 1;
     }
 
+
+
     header(column) {
         return this.headers.cell(0, column).value();
     }
 
     value(rowNumber, columnNumber) {
         return this.body.cell(rowNumber, columnNumber).value();
+    }
+
+    append(values) {
+        // add a row to the body range
+        let startRowNumber = this.body.startCell().rowNumber();
+        let startColumnNumber = this.body.startCell().columnNumber();
+        let endRowNumber = this.range.endCell().rowNumber();
+        let endColumnNumber = this.range.endCell().columnNumber();
+        endRowNumber++;
+        this.body = this.worksheet.range(startRowNumber, startColumnNumber, endRowNumber, endColumnNumber);
+        for (var n = 0; n < this.width; n++) {
+            this.body.cell(endRowNumber, n).value(values[n]);
+        }
+    }
+
+    update(rowNum, values) {
+        for (let n = 0; n < this.width; n++) {
+            this.body.cell(rowNum, n).value(values[n]);
+        }
     }
 }
 
@@ -305,6 +326,67 @@ class XlsxDatabase {
     }
 
     /**
+     * Performs an SQL UPDATE. This is called from a Promise
+     * 
+     * @param {function} resolve 
+     * @param {function} reject 
+     * @param {any} sqlObj 
+     * @memberof XlsxDatabase
+     */
+    doUpdate(resolve, reject, sqlObj) {
+        let xlTable = new XlsxTable(this, sqlObj.table);
+        let raw = xlTable.body.map(cell => cell.value());
+        let headers = xlTable.headerText;
+        let updateObj = {};
+        let results = [];
+
+        for (let item of sqlObj.set) {
+            updateObj[item.column] = item.value.value;
+        }
+
+        for (var rowNum = 0; rowNum < xlTable.height; rowNum++) {
+            let oRow = {};
+            for (let n = 0; n < headers.length; n++) {
+                oRow[headers[n]] = raw[rowNum][n];
+            }
+            if (this.doWhere(sqlObj.where, oRow) === true) {
+                for (let key in updateObj) {
+                    raw[rowNum][headers.indexOf(key)] = updateObj[key];
+                }
+                results.push(oRow);
+                xlTable.update(rowNum, raw[rowNum]);
+            }
+        }
+        resolve(results);
+    }
+
+    /**
+     * Performs an SQL INSERT. This is called from a Promise.
+     * 
+     * @param {function} resolve 
+     * @param {function} reject 
+     * @param {any} sqlObj 
+     * @memberof XlsxDatabase
+     */
+    doInsert(resolve, reject, sqlObj) {
+        let xlTable = new XlsxTable(this, sqlObj.table);
+        let headers = xlTable.headerText;
+        let rows = [];
+        for (let i = 0; i < sqlObj.values.length; i++) {
+            let data = {}, dataArray = [];
+            for (let n = 0; n < sqlObj.columns.length; n++) {
+                data[sqlObj.columns[n]] = sqlObj.values[i].value[n].value;
+            }
+            for (let key in data) {
+                dataArray[headers.indexOf(key)] = data[key];
+            }
+            xlTable.update(xlTable.height, dataArray);
+            rows.push(data);
+        }
+        resolve(rows);
+    }
+
+    /**
      * Runs the SQL statement
      * 
      * @param {string} sql 
@@ -336,12 +418,12 @@ class XlsxDatabase {
                     case 'select':
                         this.doSelect(resolve, reject, sqlObj);
                         break;
-                    // case 'update':
-                    //     this.doUpdate(resolve, reject, sqlObj);
-                    //     break;
-                    // case 'insert':
-                    //     this.doInsert(resolve, reject, sqlObj);
-                    //     break;
+                    case 'update':
+                        this.doUpdate(resolve, reject, sqlObj);
+                        break;
+                    case 'insert':
+                        this.doInsert(resolve, reject, sqlObj);
+                        break;
                     // case 'delete':
                     //     this.doDelete(resolve, reject, sqlObj);
                     //     break;
