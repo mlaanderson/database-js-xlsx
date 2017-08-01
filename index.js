@@ -67,7 +67,21 @@ class XlsxTable {
         return this.body.endCell().rowNumber() - this.body.startCell().rowNumber() + 1;
     }
 
+    get startRowNumber() {
+        return this.body.startCell().rowNumber();
+    }
 
+    get startColumnNumber() {
+        return this.body.startCell().columnNumber();
+    }
+
+    get endRowNumber() {
+        return this.body.endCell().rowNumber();
+    }
+
+    get endColumnNumber() {
+        return this.body.endCell().columnNumber();
+    }
 
     header(column) {
         return this.headers.cell(0, column).value();
@@ -77,23 +91,20 @@ class XlsxTable {
         return this.body.cell(rowNumber, columnNumber).value();
     }
 
-    append(values) {
-        // add a row to the body range
-        let startRowNumber = this.body.startCell().rowNumber();
-        let startColumnNumber = this.body.startCell().columnNumber();
-        let endRowNumber = this.range.endCell().rowNumber();
-        let endColumnNumber = this.range.endCell().columnNumber();
-        endRowNumber++;
-        this.body = this.worksheet.range(startRowNumber, startColumnNumber, endRowNumber, endColumnNumber);
-        for (var n = 0; n < this.width; n++) {
-            this.body.cell(endRowNumber, n).value(values[n]);
-        }
-    }
-
     update(rowNum, values) {
         for (let n = 0; n < this.width; n++) {
             this.body.cell(rowNum, n).value(values[n]);
         }
+    }
+
+    delete(rowNum) {
+        for (let row = rowNum-1; row < this.height; row++) {
+            for (let col = 0; col < this.width; col++) {
+                this.body.cell(row, col).value(this.body.cell(row + 1, col).value());
+            }
+        }
+        this.body = this.worksheet.range(this.startRowNumber, this.startColumnNumber,
+            this.endRowNumber - 2, this.endColumnNumber);
     }
 }
 
@@ -133,6 +144,7 @@ class XlsxDatabase {
         opts = Object.assign(defaults, options);
 
         if (opts.filename) {
+            this.filename = opts.filename;
             this.loader = new Promise((resolve, reject) => {
                 XlsxPopulate.fromFileAsync(opts.filename).then(workbook => {
                     this.workbook = workbook;
@@ -181,6 +193,24 @@ class XlsxDatabase {
             return obj.value;
         }
 
+        function replaceIfNotPrecededBy(notPrecededBy, replacement) {
+            return function(match) {
+                return match.slice(0, notPrecededBy.length) === notPrecededBy
+                ? match
+                : replacement;
+            }
+        }
+
+        function like2RegExp(like) {
+            var restring = like;
+            restring = restring.replace(/([\.\*\?\$\^])/g, "\\$1");
+            restring = restring.replace(/(?:\\)?%/g, replaceIfNotPrecededBy('\\', '.*?'));
+            restring = restring.replace(/(?:\\)?_/g, replaceIfNotPrecededBy('\\', '.'));
+            restring = restring.replace('\\%', '%');
+            restring = restring.replace('\\_', '_');
+            return new RegExp('^' + restring + '$');
+        }
+
         switch (where.type) {
             case "binary_expr":
                 switch(where.operator) {
@@ -189,12 +219,24 @@ class XlsxDatabase {
                     case "!=":
                     case "<>":
                         return getVal(where.left) != getVal(where.right);
+                    case "<":
+                        return getVal(where.left) < getVal(where.right);
+                    case "<=":
+                        return getVal(where.left) <= getVal(where.right);
+                    case ">":
+                        return getVal(where.left) > getVal(where.right);
+                    case ">=":
+                        return getVal(where.left) >= getVal(where.right);
                     case "AND":
                         return getVal(where.left) && getVal(where.right);
                     case "OR":
                         return getVal(where.left) && getVal(where.right);
                     case "IS":
                         return getVal(where.left) === getVal(where.right)
+                    case "LIKE":
+                        return like2RegExp(getVal(where.right)).test(getVal(where.left)) === true;
+                    case "NOT LIKE":
+                        return like2RegExp(getVal(where.right)).test(getVal(where.left)) === false;
                     default:
                         return false;
                 }
@@ -387,6 +429,33 @@ class XlsxDatabase {
     }
 
     /**
+     * Performs an SQL DELETE. This is called from a Promise
+     * 
+     * @param {function} resolve 
+     * @param {function} reject 
+     * @param {any} sqlObj 
+     * @memberof XlsxDatabase
+     */
+    doDelete(resolve, reject, sqlObj) {
+        let xlTable = new XlsxTable(this, sqlObj.from[0].table);
+        let raw = xlTable.body.map(cell => cell.value());
+        let headers = xlTable.headerText;
+        let results = [];
+
+        for (var rowNum = 0; rowNum < xlTable.height; rowNum++) {
+            let oRow = {};
+            for (let n = 0; n < headers.length; n++) {
+                oRow[headers[n]] = raw[rowNum][n];
+            }
+            if (this.doWhere(sqlObj.where, oRow) === true) {
+                results.push(oRow);
+                xlTable.delete(rowNum);
+            }
+        }
+        resolve(results);
+    }
+
+    /**
      * Runs the SQL statement
      * 
      * @param {string} sql 
@@ -424,9 +493,9 @@ class XlsxDatabase {
                     case 'insert':
                         this.doInsert(resolve, reject, sqlObj);
                         break;
-                    // case 'delete':
-                    //     this.doDelete(resolve, reject, sqlObj);
-                    //     break;
+                    case 'delete':
+                        this.doDelete(resolve, reject, sqlObj);
+                        break;
                     default:
                         resolve(sqlObj);
                         break;
@@ -464,7 +533,12 @@ class XlsxDatabase {
      * @memberof XlsxDatabase
      */
     close() {
-        return Promise.resolve(true);
+        if (this.filename) {
+            // save out to a file
+            return this.workbook.toFileAsync(this.filename);
+        } else {
+            return Promise.resolve(true);
+        }
     }
 
 }
