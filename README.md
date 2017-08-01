@@ -5,7 +5,7 @@ Database-js-firebase is a [database-js](https://github.com/mlaanderson/database-
 
 Tables are emulated by using a defined address `Sheet1$A1:C52`, or just a sheet name `Sheet1`. The first row must be the column headings.
 
-xlsx-populate works with an in-memory copy of the spreadsheet, so the underlying spreadsheet can be changed after it is loaded by database-js-xlsx. When the connection is closed, the in-memory copy is written back to disk and any changes outside of the database-js-xlsx will be written.
+xlsx-populate works with an in-memory copy of the spreadsheet, so the underlying spreadsheet can be changed after it is loaded by database-js-xlsx. When the connection is closed, the in-memory copy is written back to disk and any changes outside of the database-js-xlsx will be overwritten.
 
 xlsx-populate works cross platform. This means that database-js-xlsx also works cross platform, unlike the database-js-adodb driver which is Windows only.
 
