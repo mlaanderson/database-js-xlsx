@@ -361,10 +361,10 @@ class XlsxDatabase {
                     }
 
                     if (a[orderer.expr.column] > b[orderer.expr.column]) {
-                        return orderer.type = 'ASC' ? 1 : -1;
+                        return orderer.type == 'ASC' ? 1 : -1;
                     }
                     if (a[orderer.expr.column] < b[orderer.expr.column]) {
-                        return orderer.type = 'ASC' ? -1 : 1;
+                        return orderer.type == 'ASC' ? -1 : 1;
                     }
                 }
                 return 0;
