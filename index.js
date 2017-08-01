@@ -42,6 +42,21 @@ class XlsxTable {
                     throw new Error("Cannot find address " + address);
                 }
                 range = this.worksheet.usedRange();
+                let startRow = range.startCell().rowNumber();
+                let startCol = range.startCell().columnNumber();
+                let endRow = range.endCell().rowNumber();
+                let endCol = range.endCell().columnNumber();
+                let removed = 0;
+                let data = range.map(cell => cell.value()); 
+
+                // when rows are deleted, they still show up in the used range, so check the 
+                // last row to see if all values are undefined. If so they are to be pulled out
+                // of the body
+                while (data[data.length - 1 - removed].every(val => val === undefined)) {
+                    removed++;
+                }
+
+                range = this.worksheet.range(startRow, startCol, endRow - removed, endCol);
             }
         } else {
             this.worksheet = database.workbook.sheet(0);
@@ -98,13 +113,13 @@ class XlsxTable {
     }
 
     delete(rowNum) {
-        for (let row = rowNum-1; row < this.height; row++) {
+        for (let row = rowNum; row < this.height; row++) {
             for (let col = 0; col < this.width; col++) {
                 this.body.cell(row, col).value(this.body.cell(row + 1, col).value());
             }
         }
         this.body = this.worksheet.range(this.startRowNumber, this.startColumnNumber,
-            this.endRowNumber - 2, this.endColumnNumber);
+            this.endRowNumber - 1, this.endColumnNumber);
     }
 }
 
