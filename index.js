@@ -19,12 +19,22 @@ class AddressParser {
 }
 
 class XlsxTable {
-    constructor(database, address) {
+    constructor(xlsx, from) {
         let range;
+        let address;
+
+        if (from.database) {
+            address = from.database + '$' + from.table.replace(/_/g,':');
+        } else if (from.table) {
+            address = from.table.replace(/_/g, ':');
+        } else {
+            address = from.toString();
+        }
+
         if (address) {
             let parsedAddress = new AddressParser(address);
             if (parsedAddress.Matched) {
-                this.worksheet = database.workbook.sheet(parsedAddress.Sheet);
+                this.worksheet = xlsx.workbook.sheet(parsedAddress.Sheet);
                 if (parsedAddress.End) {
                     range = this.worksheet.range(parsedAddress.Start + ":" + parsedAddress.End);
                 } else {
@@ -37,7 +47,7 @@ class XlsxTable {
                 }
             } else {
                 // try to see if it's a valid sheet
-                this.worksheet = database.workbook.sheet(address);
+                this.worksheet = xlsx.workbook.sheet(address);
                 if (this.worksheet === null) {
                     throw new Error("Cannot find address " + address);
                 }
@@ -59,7 +69,7 @@ class XlsxTable {
                 range = this.worksheet.range(startRow, startCol, endRow - removed, endCol);
             }
         } else {
-            this.worksheet = database.workbook.sheet(0);
+            this.worksheet = xlsx.workbook.sheet(0);
             range = this.worksheet.usedRange();
         }
 
@@ -339,7 +349,7 @@ class XlsxDatabase {
             console.warn("GROUP BY is unsupported");
         }
 
-        let xlTable = new XlsxTable(this, sqlObj.from[0].table);
+        let xlTable = new XlsxTable(this, sqlObj.from[0]);
         let raw = xlTable.body.map(cell => cell.value());
         let headers = xlTable.headerText;
         let rows = [];
@@ -493,9 +503,18 @@ class XlsxDatabase {
                         sqlObj = parse(sql);
                         sqlObj.type = 'delete';
                         delete sqlObj.columns;
+                    } else if (err.found === '$') {
+                        sql = sql.substr(0, err.offset) + '.' + sql.substr(err.offset + 1);
+                        this.runSQL(sql).then(value => resolve(value)).catch(reason => reject(reason));
+                        return;
+                    } else if (err.found === ':') {
+                        sql = sql.substr(0, err.offset) + '_' + sql.substr(err.offset + 1);
+                        this.runSQL(sql).then(value => resolve(value)).catch(reason => reject(reason));
+                        return;
                     } else {
                         reject(err);
                     }
+
                 }
 
                 switch(sqlObj.type) {
