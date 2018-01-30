@@ -1,9 +1,18 @@
 var database = require('.');
 
-(async function() {
-    var conn = database.open({ Database: 'test.xlsx' });
+var connection = database.open({ Database: 'test.xlsx' });
 
-    let results = await conn.query("SELECT * FROM Sheet1$A1:C52");
-    console.log(results);
-    await conn.close();
-})();
+function handleError(error) {
+    console.log("ERROR:", error);
+    process.exit(1);
+}
+
+
+connection.query("SELECT * FROM Sheet1$A1:C52 Where State = 'South Dakota'").then((data) => {
+    if (data.length != 1) {
+        handleError(new Error("Invalid data returned"));
+    }
+    connection.close().then(() => {
+        process.exit(0);
+    }).catch(handleError);
+}).catch(handleError);

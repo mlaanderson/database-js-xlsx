@@ -1,4 +1,6 @@
 # database-js-xlsx
+[![Build Status](https://travis-ci.org/mlaanderson/database-js-xlsx.svg?branch=master)](https://travis-ci.org/mlaanderson/database-js-xlsx)
+
 Database-js Wrapper for XLSX files
 ## About
 Database-js-firebase is a [database-js](https://github.com/mlaanderson/database-js) wrapper around the [xlsx-populate](https://github.com/dtjohnson/xlsx-populate) library by Dave Johnson. 
