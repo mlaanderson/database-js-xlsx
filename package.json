@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/mlaanderson/database-js-xlsx#readme",
   "dependencies": {
+    "lodash": "^4.17.14",
     "node-sqlparser": "^1.0.2",
     "xlsx-populate": "^1.8.2"
   }
